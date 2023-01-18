@@ -6,6 +6,32 @@ vim = vim or {} -- make compiler happy
 
 local state = {}
 
+local style = {
+  apm_lines = 1,
+  key_lines = 1,
+  key_max_lines = 3,
+  width = 14,
+  height = 2,
+}
+
+local function format_apm(apm)
+  if apm > 9e3 then
+    -- IT'S OVER 9000!
+    return '>9k'
+  end
+
+  if apm > 1e3 then
+    local i, f = math.modf(apm / 1e3)
+    f = math.floor(f * 10)
+    if f ~= 0 then
+      return i .. '.' .. f .. 'k'
+    end
+    return i .. 'k'
+  end
+
+  return tostring(apm)
+end
+
 local function tick()
   local mode, apm
 
@@ -28,15 +54,21 @@ local function tick()
     apm = state.buckets.normal:apm(now)
   end
 
-  vim.api.nvim_buf_set_lines(state.bufh, 0, 2, false , {
-    string.format('t: %s', t_apm),
-    string.format('%s: %s', mode, apm),
+  t_apm = format_apm(t_apm)
+  apm = format_apm(apm)
+
+  vim.api.nvim_buf_set_lines(state.bufh, 0, style.apm_lines, false , {
+    string.format('t:%4s %s:%4s', t_apm, mode, apm),
   })
 end
 
 local function key_stroke(key)
   local now = os.time()
   key = vim.fn.keytrans(key)
+
+  if key == '<Cmd>' or key:find('^<t_') ~= nil then
+    return
+  end
 
   state.buckets.total:push(key, now)
   state.buckets.recent:push(key, now)
@@ -52,9 +84,23 @@ local function key_stroke(key)
     state.buckets.normal:push(key, now)
   end
 
-  vim.api.nvim_buf_set_lines(state.bufh, 2, 3, false , {
-    state.buckets.recent:keys(),
-  })
+  local keylog = state.buckets.recent:keys()
+  local key_lines = math.ceil(#keylog / style.width)
+  if key_lines > style.key_max_lines then
+    key_lines = style.key_max_lines
+    keylog = string.sub(keylog, #keylog - key_lines * style.width - 1)
+  end
+
+  local height = style.apm_lines + key_lines
+  if height ~= state.win_height then
+    if state.win ~= nil then
+      vim.api.nvim_win_set_height(state.win, height)
+    end
+    state.win_height = height
+  end
+
+  vim.api.nvim_buf_set_lines(state.bufh,
+    style.apm_lines, style.apm_lines + style.key_lines, false, { keylog })
 end
 
 function M.resize()
@@ -62,28 +108,35 @@ function M.resize()
     return
   end
 
-  local conf = {
-    style = 'minimal',
-    relative = 'win',
-    row = 2,
-    col = vim.api.nvim_win_get_width(0) - 14,
-    width = 14,
-    height = 3
-  }
-
   if state.bufh == nil then
     state.bufh = vim.api.nvim_create_buf(false, true)
   end
 
+  local ui_config = {
+    style = 'minimal',
+    relative = 'editor',
+    width = style.width,
+    height = style.height,
+    anchor = 'NE',
+    row = 1,
+    col = vim.o.columns - 1,
+    focusable = false,
+    border = 'rounded',
+    noautocmd = true,
+  }
+
   if state.win == nil then
-    state.win = vim.api.nvim_open_win(state.bufh, false, conf)
+    state.win = vim.api.nvim_open_win(state.bufh, false, ui_config)
   else
-    vim.api.nvim_win_set_config(state.win, conf)
+    vim.api.nvim_win_set_config(state.win, ui_config)
   end
+
+  state.win_height = ui_config.height
 end
 
 function M.apm_start()
   if state.active then
+    M.resize()
     return
   end
 
@@ -139,6 +192,16 @@ end
 function M.win_close(win)
   if state.win == tonumber(win) then
     state.win = nil
+  end
+end
+
+function M.apm_toggle()
+  if state.win ~= nil then
+    vim.api.nvim_win_close(state.win, true)
+  elseif state.active then
+    M.resize()
+  else
+    M.apm_start()
   end
 end
 

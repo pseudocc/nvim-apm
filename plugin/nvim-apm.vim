@@ -2,7 +2,7 @@
 " recent key strokes
 "
 " Author:       pseudoc <atlas.yu@canonical.com>
-" Version:      0.1.0
+" Version:      0.2.0
 " License:      MIT
 " Repository:   https://github.com/pseudocc/nvim-apm
 
@@ -25,8 +25,13 @@ func! s:NvimApmStop()
   lua package.loaded['nvim-apm.list'] = nil
 endf
 
+func! s:NvimApmToggle()
+  lua require('nvim-apm').apm_toggle()
+endf
+
 command! NvimApm call s:NvimApmStart()
 command! NvimApmStop call s:NvimApmStop()
+command! NvimApmToggle call s:NvimApmToggle()
 
 augroup NvimApmGroup
   autocmd!
