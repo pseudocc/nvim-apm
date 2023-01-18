@@ -2,7 +2,7 @@
 " recent key strokes
 "
 " Author:       pseudoc <atlas.yu@canonical.com>
-" Version:      0.2.1
+" Version:      0.2.2
 " License:      MIT
 " Repository:   https://github.com/pseudocc/nvim-apm
 

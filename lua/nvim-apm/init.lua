@@ -126,7 +126,9 @@ function M.resize()
   }
 
   if state.win == nil then
-    state.win = vim.api.nvim_open_win(state.bufh, false, ui_config)
+    if state.hide == false then
+      state.win = vim.api.nvim_open_win(state.bufh, false, ui_config)
+    end
   else
     vim.api.nvim_win_set_config(state.win, ui_config)
   end
@@ -149,6 +151,7 @@ function M.apm_start()
   end
 
   state.active = true
+  state.hide = false
   M.resize()
 
   state.buckets = {
@@ -199,12 +202,18 @@ function M.win_close(win)
 end
 
 function M.apm_toggle()
-  if state.win ~= nil then
-    vim.api.nvim_win_close(state.win, true)
-  elseif state.active then
-    M.resize()
-  else
+  if state.active ~= true then
     M.apm_start()
+    return
+  end
+
+  state.hide = not state.hide
+  if state.hide == true then
+    if state.win ~= nil then
+      vim.api.nvim_win_close(state.win, true)
+    end
+  else
+    M.resize()
   end
 end
 
