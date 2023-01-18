@@ -1,41 +1,60 @@
-local Buckets = require 'buckets'
+local Buckets = require 'nvim-apm.buckets'
 local M = {}
+
+---@diagnostic disable-next-line: lowercase-global
+vim = vim or {} -- make compiler happy
 
 local state = {}
 
 local function tick()
-  local mode, keys, apm
+  local mode, apm
 
   local now = os.time()
-  for _, value in pairs(state.buckets) do
+  for _, value in pairs(state.buckets or {}) do
     value:truncate(now)
   end
 
-  local t_keys, t_apm = state.buckets.total:apm()
-  if vim.api.get_mode().mode == 'i' then
-    mode = 'insert'
-    keys, apm = state.buckets.insert:apm()
-  else
-    mode = 'normal'
-    keys, apm = state.buckets.normal:apm()
+  local t_apm = state.buckets.total:apm(now)
+  local result = vim.api.nvim_get_mode()
+  if result == nil then
+    return
   end
 
-  vim.fn.buf_set_lines(state.bufh, 0, 2, false , {
-    string.format('total: %s / %s', t_apm, t_keys),
-    string.format('%s: %s', apm),
-    state.buckets.recent.keys(),
+  if result.mode == 'i' then
+    mode = 'i'
+    apm = state.buckets.insert:apm(now)
+  else
+    mode = 'n'
+    apm = state.buckets.normal:apm(now)
+  end
+
+  vim.api.nvim_buf_set_lines(state.bufh, 0, 2, false , {
+    string.format('t: %s', t_apm),
+    string.format('%s: %s', mode, apm),
   })
 end
 
 local function key_stroke(key)
   local now = os.time()
-  if vim.api.get_mode().mode == 'i' then
+  key = vim.fn.keytrans(key)
+
+  state.buckets.total:push(key, now)
+  state.buckets.recent:push(key, now)
+
+  local result = vim.api.nvim_get_mode()
+  if result == nil then
+    return
+  end
+
+  if result.mode == 'i' then
     state.buckets.insert:push(key, now)
   else
     state.buckets.normal:push(key, now)
   end
-  state.buckets.total:push(key, now)
-  state.buckets.recent:push(key, now)
+
+  vim.api.nvim_buf_set_lines(state.bufh, 2, 3, false , {
+    state.buckets.recent:keys(),
+  })
 end
 
 function M.resize()
@@ -47,19 +66,19 @@ function M.resize()
     style = 'minimal',
     relative = 'win',
     row = 2,
-    col = vim.fn.nvim_win_get_width(0) - 14,
+    col = vim.api.nvim_win_get_width(0) - 14,
     width = 14,
-    height = 4
+    height = 3
   }
 
   if state.bufh == nil then
-    state.bufh = vim.fn.nvim_create_buf(false, true)
+    state.bufh = vim.api.nvim_create_buf(false, true)
   end
 
   if state.win == nil then
-    setate.win = vim.api.nvim_open_win(state.bufh, false, conf)
+    state.win = vim.api.nvim_open_win(state.bufh, false, conf)
   else
-    vim.api.nvim_win_set_config(win, conf)
+    vim.api.nvim_win_set_config(state.win, conf)
   end
 end
 
@@ -69,8 +88,8 @@ function M.apm_start()
   end
 
   local bucket_options = {
-    total = 60 * 1e3,
-    interval = 5 * 1e3,
+    total = 60,
+    interval = 5,
   }
 
   state.active = true
@@ -80,19 +99,26 @@ function M.apm_start()
     insert = Buckets:new(bucket_options),
     normal = Buckets:new(bucket_options),
     total = Buckets:new(bucket_options),
-    recent = Buckets:new { total = 5, interval = 1 },
+    recent = Buckets:new {
+      total = 5,
+      interval = 1,
+    },
   }
 
   state.timer = vim.loop.new_timer()
-  state.timer:start(1000, 500, vim.schedule_wrap(tick))
-  state.ns = vim.fn.nvim_create_namespace('apm.nvim') 
+  state.timer:start(1000, 1000, vim.schedule_wrap(tick))
+  state.ns = vim.api.nvim_create_namespace('apm.nvim')
 
   vim.on_key(key_stroke, state.ns)
 end
 
 function M.apm_stop()
   if state.win ~= nil then
-    vim.fn.nvim_win_close(state.win, true)
+    vim.api.nvim_win_close(state.win, true)
+  end
+
+  if state.timer ~= nil then
+    state.timer:stop()
   end
 
   if state.bufh ~= nil then
