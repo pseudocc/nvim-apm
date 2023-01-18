@@ -24,7 +24,7 @@ local function format_apm(apm)
     local i, f = math.modf(apm / 1e3)
     f = math.floor(f * 10)
     if f ~= 0 then
-      return i .. '.' .. f .. 'k'
+      return string.format('%s.%sk', i, f)
     end
     return i .. 'k'
   end
@@ -88,7 +88,7 @@ local function key_stroke(key)
   local key_lines = math.ceil(#keylog / style.width)
   if key_lines > style.key_max_lines then
     key_lines = style.key_max_lines
-    keylog = string.sub(keylog, #keylog - key_lines * style.width - 1)
+    keylog = string.sub(keylog, #keylog - key_lines * style.width + 1)
   end
 
   local height = style.apm_lines + key_lines
@@ -140,18 +140,21 @@ function M.apm_start()
     return
   end
 
-  local bucket_options = {
-    total = 60,
-    interval = 5,
-  }
+  local function create_apm_buckets()
+    local bucket_options = {
+      total = 180,
+      interval = 5,
+    }
+    return Buckets:new(bucket_options)
+  end
 
   state.active = true
   M.resize()
 
   state.buckets = {
-    insert = Buckets:new(bucket_options),
-    normal = Buckets:new(bucket_options),
-    total = Buckets:new(bucket_options),
+    insert = create_apm_buckets(),
+    normal = create_apm_buckets(),
+    total = create_apm_buckets(),
     recent = Buckets:new {
       total = 5,
       interval = 1,
