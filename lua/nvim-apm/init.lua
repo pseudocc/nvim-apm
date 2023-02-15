@@ -1,9 +1,6 @@
 local Buckets = require 'nvim-apm.buckets'
 local M = {}
 
----@diagnostic disable-next-line: lowercase-global
-vim = vim or {} -- make compiler happy
-
 local state = {}
 
 local style = {
