@@ -63,7 +63,11 @@ local function key_stroke(key)
   local now = os.time()
   key = vim.fn.keytrans(key)
 
-  if key == '<Cmd>' or key:find('^<t_') ~= nil then
+  if key == '<lt>' then
+    key = '<'
+  end
+
+  if key == '<Cmd>' or key:find('^<t_') ~= nil or #key > 10 then
     return
   end
 
